@@ -54,7 +54,7 @@ jobs:
           python-version: '3.12'
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: '0.11.16'
           enable-cache: true
@@ -156,7 +156,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: '0.11.16'
           enable-cache: true
@@ -244,7 +244,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: '0.11.16'
       - name: Install locked dependencies
