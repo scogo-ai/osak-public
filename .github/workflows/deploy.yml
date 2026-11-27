@@ -195,7 +195,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and publish API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.api
@@ -206,7 +206,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=osak-api
 
       - name: Build and publish worker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.worker
