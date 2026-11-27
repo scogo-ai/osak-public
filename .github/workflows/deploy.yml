@@ -37,7 +37,7 @@ jobs:
     steps:
       - name: Verify successful CI run for target SHA
         id: verify
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           MANUAL_SHA: ${{ inputs.sha }}
         with:
