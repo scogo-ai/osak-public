@@ -32,7 +32,7 @@ endoflife_date_fortios = "osak.connectors.eol:EndOfLifeDateConnector"
 [project.scripts]
 osak = "osak.cli:main"
 [dependency-groups]
-dev = ["pytest>=8,<10", "hypothesis>=6,<7", "pytest-cov>=6,<8", "mypy>=1.15,<2", "ruff>=0.11,<1", "pytest-asyncio>=0.25,<2", "bandit>=1.8,<2", "pip-audit>=2.9,<3"]
+dev = ["pytest>=8,<10", "hypothesis>=6,<7", "pytest-cov>=6,<8", "mypy>=1.15,<3", "ruff>=0.11,<1", "pytest-asyncio>=0.25,<2", "bandit>=1.8,<2", "pip-audit>=2.9,<3"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["zdr: zero-data-retention canary and sink checks"]
