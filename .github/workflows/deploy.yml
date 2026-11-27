@@ -83,7 +83,7 @@ jobs:
       TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.gate.outputs.target_sha }}
       - name: Configure origin SSH
@@ -112,7 +112,7 @@ jobs:
       website: ${{ steps.filter.outputs.website }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.gate.outputs.target_sha }}
           fetch-depth: 0
@@ -173,7 +173,7 @@ jobs:
       image_prefix: ${{ steps.vars.outputs.image_prefix }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.gate.outputs.target_sha }}
 
@@ -237,7 +237,7 @@ jobs:
       TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
 
@@ -300,7 +300,7 @@ jobs:
       TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
 
@@ -426,7 +426,7 @@ jobs:
       TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Check out target commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
       - name: Configure origin SSH

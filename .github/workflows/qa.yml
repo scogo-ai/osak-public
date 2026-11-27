@@ -32,7 +32,7 @@ jobs:
       TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Configure restricted origin SSH
         run: .github/scripts/setup-origin-ssh.sh
       - name: Require protected origin inputs
