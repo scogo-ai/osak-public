@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1.7
+
+ARG PYTHON_IMAGE=python:3.12.8-slim-bookworm
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.16
+
+FROM ${UV_IMAGE} AS uv
+
+FROM ${PYTHON_IMAGE} AS runtime
+
+ARG BUILD_VERSION=dev
+
+LABEL org.opencontainers.image.title="OSAK API" \
+      org.opencontainers.image.description="Open Security Advisory Kosh REST and MCP API" \
+      org.opencontainers.image.version="${BUILD_VERSION}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:${PATH}"
+
+WORKDIR /app
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+
+# Keep the runtime image non-root. The mounted data directory is owned by this
+# UID in the image and may be replaced with a named volume by Compose.
+RUN addgroup --system --gid 10001 osak \
+    && adduser --system --uid 10001 --ingroup osak --home /app osak \
+    && mkdir -p /var/lib/osak/data /var/lib/osak/backups \
+    && chown -R 10001:10001 /app /var/lib/osak
+
+# The source tree is copied as one unit so migrations, packaging metadata and
+# future connector assets cannot be accidentally omitted from the image.
+COPY . .
+
+RUN uv sync --locked --no-dev \
+    && chown -R 10001:10001 /app
+
+USER 10001:10001
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+  CMD python -c "import os, urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/v1/health', headers={'X-OSAK-Origin-Secret': os.getenv('OSAK_ORIGIN_SHARED_SECRET','')}), timeout=3)" \
+  || exit 1
+
+CMD ["uvicorn", "osak.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

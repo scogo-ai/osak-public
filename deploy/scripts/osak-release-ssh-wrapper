@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# This file is installed root-owned at /usr/local/sbin/osak-release-ssh-wrapper
+# on the origin LXC. It is used as the forced command in the release user's
+# authorized_keys entry. Do not invoke it as a general shell.
+
+DEPLOY_PATH=/opt/osak
+STATE_DIR="$DEPLOY_PATH/.osak-deploy"
+ARCHIVE_DIR="$STATE_DIR/incoming"
+API_PORT=8001
+
+die() {
+  printf 'release operation rejected\n' >&2
+  exit 2
+}
+
+valid_sha() {
+  [[ "${1:-}" =~ ^[0-9a-fA-F]{40,128}$ ]]
+}
+
+read_sha() {
+  local sha
+  IFS= read -r sha || die
+  valid_sha "$sha" || die
+  printf '%s' "$sha"
+}
+
+read_env_value() {
+  local key=$1
+  awk -F= -v key="$key" '$1 == key { print substr($0, index($0, "=") + 1); exit }' \
+    "$DEPLOY_PATH/.env"
+}
+
+state() {
+  local revision
+  revision=$(cat "$STATE_DIR/deployed-revision" 2>/dev/null || true)
+  if valid_sha "$revision"; then
+    printf '%s\n' "$revision"
+  else
+    printf 'none\n'
+  fi
+}
+
+install_archive() (
+  local sha=$1 archive tmp member
+  umask 077
+  install -d -m 0700 "$STATE_DIR"
+  tmp=$(mktemp -d "$STATE_DIR/extract.XXXXXX")
+  trap 'rm -rf -- "$tmp"' EXIT
+  archive="$tmp/archive.tar.gz"
+  head -c 4194305 >"$archive"
+  [[ $(wc -c <"$archive") -le 4194304 ]] || die
+  python3 - "$archive" "$tmp" <<'PYTHON'
+import sys
+import tarfile
+from pathlib import Path
+
+archive, directory = map(Path, sys.argv[1:])
+required = {"docker-compose.prod.yml", "docker-compose.ct203.production.yml",
+            "scripts/deploy-backend.sh", "scripts/rollback.sh", "scripts/smoke.sh",
+            "scripts/smoke_mcp.py"}
+allowed = required | {"scripts/backup.sh", "scripts/check-openapi.py", "scripts/smoke-website.sh"}
+(directory / "scripts").mkdir()
+seen = set()
+with tarfile.open(archive, mode="r|gz") as tar:
+    for member in tar:
+        if member.name == "scripts" and member.isdir():
+            continue
+        if (member.name not in allowed or member.name in seen or not member.isfile()
+                or not 0 < member.size <= 1024 * 1024):
+            raise SystemExit("Unexpected release archive member")
+        seen.add(member.name)
+        with tar.extractfile(member) as src, (directory / member.name).open("xb") as dst:
+            dst.write(src.read())
+if not required <= seen:
+    raise SystemExit("Release archive is incomplete")
+PYTHON
+  install -d -m 0750 "$DEPLOY_PATH/deploy/scripts"
+  install -m 0644 "$tmp/"*.yml "$DEPLOY_PATH/deploy"
+  install -m 0755 "$tmp/scripts/"* "$DEPLOY_PATH/deploy/scripts"
+  printf '%s\n' "$sha" >"$STATE_DIR/installed-revision"
+)
+
+ghcr_login() {
+  local token
+  IFS= read -r token || die
+  [[ -n "$token" ]] || die
+  printf '%s' "$token" | docker login ghcr.io --username github-actions[bot] --password-stdin >/dev/null
+}
+
+deploy() {
+  local sha=$1
+  [[ $(cat "$STATE_DIR/installed-revision") == "$sha" ]] || die
+  OSAK_IMAGE_TAG="$sha" "$DEPLOY_PATH/deploy/scripts/deploy-backend.sh" "$sha"
+}
+
+rollback() {
+  "$DEPLOY_PATH/deploy/scripts/rollback.sh"
+}
+
+smoke() {
+  local smoke_key origin_secret api_image current_tag
+  IFS= read -r smoke_key || die
+  origin_secret=$(read_env_value OSAK_ORIGIN_SHARED_SECRET)
+  [[ -n "$origin_secret" ]] || die
+  [[ "$smoke_key" == osak_live_* || "$smoke_key" == osak_test_* ]] || die
+  export OSAK_SMOKE_TEST_KEY="$smoke_key"
+  export OSAK_ORIGIN_SHARED_SECRET="$origin_secret"
+  export OSAK_SMOKE_BASE_URL="http://127.0.0.1:$API_PORT"
+  "$DEPLOY_PATH/deploy/scripts/smoke.sh"
+
+  api_image=$(read_env_value OSAK_API_IMAGE)
+  current_tag=$(cat "$STATE_DIR/current-image-tag" 2>/dev/null || true)
+  [[ "$api_image" =~ ^[A-Za-z0-9._/-]+$ && "$current_tag" =~ ^[0-9a-fA-F]{40,128}$ ]] || die
+  docker run --rm --network host \
+    -e OSAK_SMOKE_TEST_KEY -e OSAK_BASE_URL="$OSAK_SMOKE_BASE_URL" \
+    -e OSAK_ORIGIN_SHARED_SECRET \
+    -v "$DEPLOY_PATH/deploy/scripts/smoke_mcp.py:/tmp/smoke_mcp.py:ro" \
+    "$api_image:$current_tag" python /tmp/smoke_mcp.py
+}
+
+zdr() (
+  local base_url api_key db_url project env_file compose_file override_file extra_sinks sink_token
+  local api_container api_image tmp sink_name sink_port logs_pid sink_pid
+  local -a compose sink_values canary_command
+  IFS= read -r base_url || die
+  IFS= read -r api_key || die
+  [[ "$base_url" == "https://osak.lab.scogo.ai" ]] || die
+  [[ "$api_key" =~ ^osak_live_[A-Za-z0-9_-]+$ ]] || die
+
+  env_file="$DEPLOY_PATH/.env"
+  compose_file="$DEPLOY_PATH/deploy/docker-compose.prod.yml"
+  override_file="$DEPLOY_PATH/deploy/docker-compose.ct203.production.yml"
+  project=osak-ct203-prod
+  compose=(docker compose --env-file "$env_file" -f "$compose_file")
+  [[ -f "$override_file" ]] || die
+  compose+=( -f "$override_file" )
+  export COMPOSE_PROFILES=${COMPOSE_PROFILES:-public}
+  compose+=( -p "$project" )
+
+  # Always use the image ID actually running on this production project.
+  api_container=$("${compose[@]}" ps -q api) || die
+  api_image=$(docker inspect --format '{{.Image}}' "$api_container") || die
+  [[ "$api_image" =~ ^sha256:[0-9a-f]{64}$ ]] || die
+
+  # Read the effective URL from the running API container; credentials never
+  # leave the origin and are not passed through the GitHub runner.
+  db_url=$("${compose[@]}" exec -T api sh -ec 'printf %s "$DATABASE_URL"') || die
+  [[ "$db_url" == postgresql* || "$db_url" == sqlite* ]] || die
+
+  umask 077
+  tmp=$(mktemp -d /dev/shm/osak-zdr.XXXXXX)
+  sink_name="osak-zdr-sink-$$"
+  sink_port=18765
+  logs_pid=""
+  sink_pid=""
+  cleanup_zdr() {
+    [[ -n "$sink_pid" ]] && docker rm -f "$sink_name" >/dev/null 2>&1 || true
+    [[ -n "$logs_pid" ]] && kill "$logs_pid" >/dev/null 2>&1 || true
+    rm -rf -- "$tmp"
+  }
+  trap cleanup_zdr EXIT
+  docker cp "$api_container:/app/scripts/qa/live_log_sink.py" "$tmp/live_log_sink.py" || die
+  : >"$tmp/services.log"
+  "${compose[@]}" logs --since 30s --follow --no-color api worker migrate postgres backup cloudflared >"$tmp/services.log" 2>&1 &
+  logs_pid=$!
+
+  # The sink runs from the deployed API image with host networking, but no
+  # Docker socket. It serves only the origin-local log file on loopback.
+  docker run --rm --detach --user "$(id -u):$(id -g)" --name "$sink_name" --network host --read-only \
+    --tmpfs /tmp:mode=1777,noexec,nosuid --security-opt no-new-privileges \
+    --cap-drop ALL -v "$tmp:/run/osak-zdr:ro" \
+    --workdir /tmp "$api_image" /usr/local/bin/python /run/osak-zdr/live_log_sink.py \
+      --file /run/osak-zdr/services.log --port "$sink_port" >/dev/null || die
+  sink_pid=$sink_name
+  for _ in $(seq 1 30); do
+    if curl --fail --silent "http://127.0.0.1:$sink_port/health" >/dev/null; then
+      break
+    fi
+    sleep 1
+  done
+  curl --fail --silent "http://127.0.0.1:$sink_port/health" >/dev/null || die
+
+  # Optional extra sinks remain origin-only configuration. Their URLs and
+  # token are never sent to the public request path or printed.
+  extra_sinks=$(read_env_value OSAK_ZDR_EXTRA_LOG_SINK_URLS || true)
+  sink_token=$(read_env_value OSAK_ZDR_LOG_SINK_TOKEN || true)
+  canary_command=(
+    docker run --rm --network host --read-only
+    --tmpfs /tmp:mode=1777,noexec,nosuid --security-opt no-new-privileges
+    --cap-drop ALL
+    -e OSAK_ZDR_API_KEY -e OSAK_ZDR_DATABASE_URL -e OSAK_ZDR_LOG_SINK_TOKEN
+    "$api_image" python /app/scripts/qa/zdr_canary.py
+    --production --base-url "$base_url" --log-sink-url "http://127.0.0.1:$sink_port/logs"
+  )
+  if [[ -n "$extra_sinks" ]]; then
+    IFS=',' read -r -a sink_values <<<"$extra_sinks"
+    for sink in "${sink_values[@]}"; do
+      [[ "$sink" =~ ^https?:// ]] || die
+      canary_command+=(--log-sink-url "$sink")
+    done
+  fi
+  OSAK_ZDR_API_KEY="$api_key" OSAK_ZDR_DATABASE_URL="$db_url" \
+    OSAK_ZDR_LOG_SINK_TOKEN="$sink_token" "${canary_command[@]}"
+  kill -0 "$logs_pid" >/dev/null 2>&1 || die
+)
+
+record_release() {
+  local sha=$1
+  install -d -m 0700 "$STATE_DIR"
+  printf '%s\n' "$sha" >"$STATE_DIR/deployed-revision.new"
+  chmod 600 "$STATE_DIR/deployed-revision.new"
+  mv -f "$STATE_DIR/deployed-revision.new" "$STATE_DIR/deployed-revision"
+}
+
+logout() {
+  docker logout ghcr.io >/dev/null 2>&1 || true
+}
+
+[[ "${SSH_ORIGINAL_COMMAND:-}" != *[[:space:]]* ]] || die
+case "${SSH_ORIGINAL_COMMAND:-}" in
+  state) state ;;
+  install) sha=$(read_sha); install_archive "$sha" ;;
+  ghcr-login) ghcr_login ;;
+  deploy) sha=$(read_sha); deploy "$sha" ;;
+  rollback) rollback ;;
+  smoke) smoke ;;
+  zdr) zdr ;;
+  record-release) sha=$(read_sha); record_release "$sha" ;;
+  logout) logout ;;
+  *) die ;;
+esac

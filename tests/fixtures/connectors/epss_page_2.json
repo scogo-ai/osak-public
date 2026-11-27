@@ -1,0 +1,9 @@
+{
+  "status": "OK",
+  "total": 3,
+  "offset": 2,
+  "limit": 2,
+  "data": [
+    {"cve": "CVE-2024-3653", "epss": "0.000010000", "percentile": "0.010000000", "date": "2026-11-26"}
+  ]
+}

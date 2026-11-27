@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="OSAK privacy note and Zero Data Retention statement.">
+    <meta name="theme-color" content="#f5f1e8">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <title>Privacy note — OSAK</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="OSAK home"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span></a>
+        <nav class="site-nav" aria-label="Secondary navigation"><a href="/">Home</a><a href="/terms">Terms of use</a><a href="/docs">API docs</a></nav>
+      </header>
+      <main class="legal-main" id="main-content">
+        <h1>Privacy note</h1>
+        <p class="legal-lede">Last updated: 27 November 2026</p>
+        <div class="legal-callout"><strong>Zero Data Retention for inventory.</strong> We never store the assets you send. We keep account details for the life of the account. We keep request metadata (endpoint, time, status) for 90 days for quotas and abuse prevention.</div>
+
+        <section class="legal-section" aria-labelledby="what-title">
+          <h2 id="what-title">What OSAK is for</h2>
+          <p>OSAK (Open Security Advisory Kosh) aggregates structured facts from public vulnerability databases and OEM security-advisory sources. You can submit an asset to a matching endpoint to receive a deterministic advisory result. The service is designed for NOC, SOC, and security engineering teams.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="collect-title">
+          <h2 id="collect-title">What we keep</h2>
+          <ul>
+            <li><strong>Account details:</strong> name, organization, email address, account status, plan/quota, creation time, and the accepted terms version.</li>
+            <li><strong>Signup protection:</strong> a truncated or hashed signup IP and anti-abuse decision. We do not retain the raw IP for account records.</li>
+            <li><strong>Request metadata:</strong> request ID, account/key identifiers, time, method, route template, allowed filter parameters, status, latency, response size, asset count for matching, MCP tool name, and truncated or hashed IP/user-agent details.</li>
+            <li><strong>Source records:</strong> structured advisory facts, source links, attribution, checksums, and synchronization metadata. These describe public sources, not your inventory.</li>
+          </ul>
+          <p>We keep account details for the life of the account. After 90 days, we roll up request metadata into daily aggregates for quota and abuse-prevention reporting.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="never-title">
+          <h2 id="never-title">What we do not keep</h2>
+          <p>Request bodies for <code>/api/v1/match</code>, <code>/api/v1/resolve</code>, and the MCP tools <code>check_assets</code> and <code>resolve_inventory</code> are not written to the database, application logs, traces, error reports, caches, or files. Application logging redacts request bodies globally. Serial numbers may be supplied for resolution, but are not used as the advisory verdict and are not retained in request bodies.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="cookies-title">
+          <h2 id="cookies-title">Cookies and third parties</h2>
+          <p>The website does not set tracking cookies. The theme preference is kept in browser local storage when available. Signup uses Cloudflare Turnstile for abuse prevention and Resend for the one API-key email when those services are configured. Those services may process the minimum information needed for their operation under their own terms. OSAK does not sell personal information.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="choices-title">
+          <h2 id="choices-title">Questions and requests</h2>
+          <p>For a privacy question or a request about your account, contact Scogo.AI through its company contact channel. Do not send customer inventory or secrets in an email.</p>
+        </section>
+      </main>
+      <footer class="site-footer"><div class="footer-brand"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span><span class="footer-separator">/</span><span>Built by Scogo.AI</span></div><div class="footer-links"><a href="/">Home</a><a href="/terms">Terms</a></div></footer>
+    </div>
+  </body>
+</html>

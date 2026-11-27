@@ -1,0 +1,38 @@
+{
+  "kind": "zone",
+  "name": "OSAK edge rate limits",
+  "description": "OSAK-specific edge backstops for signup and public anonymous facts. Applied only to osak.lab.scogo.ai.",
+  "phase": "http_ratelimit",
+  "rules": [
+    {
+      "action": "block",
+      "description": "OSAK signup requests by source IP",
+      "enabled": true,
+      "expression": "http.host eq \"osak.lab.scogo.ai\" and http.request.method eq \"POST\" and http.request.uri.path eq \"/api/v1/signup\"",
+      "ratelimit": {
+        "characteristics": [
+          "cf.colo.id",
+          "ip.src"
+        ],
+        "period": 60,
+        "requests_per_period": 8,
+        "mitigation_timeout": 60
+      }
+    },
+    {
+      "action": "managed_challenge",
+      "description": "OSAK unauthenticated public API backstop",
+      "enabled": true,
+      "expression": "http.host eq \"osak.lab.scogo.ai\" and http.request.uri.path in {\"/api/v1/health\" \"/api/v1/sources\"}",
+      "ratelimit": {
+        "characteristics": [
+          "cf.colo.id",
+          "ip.src"
+        ],
+        "period": 60,
+        "requests_per_period": 120,
+        "mitigation_timeout": 60
+      }
+    }
+  ]
+}

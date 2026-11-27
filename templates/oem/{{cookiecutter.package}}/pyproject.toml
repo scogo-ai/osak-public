@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ cookiecutter.package }}"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["osak>=0.1,<0.2"]
+
+[project.entry-points."osak.connectors"]
+"{{ cookiecutter.source_id }}" = "{{ cookiecutter.package }}:Source"

@@ -1,0 +1,10 @@
+{
+  "retrieved_at": "2026-11-27T08:30:00Z",
+  "response_sha256": "c507c3c395c1f5e2ae4124b43a27691f0a71bcb2802a23156f0cad64f2baeb2b",
+  "status": 403,
+  "sources": {
+    "openvuln": "https://apix.cisco.com/security/advisories/v2/latest/1",
+    "eox": "https://apix.cisco.com/supporttools/eox/rest/5/EOXByProductID/1/WIC-1T=?responseencoding=json"
+  },
+  "meaning": "Cisco credentials are required; no authenticated advisory or lifecycle response is redistributed."
+}

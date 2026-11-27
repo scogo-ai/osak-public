@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1.7
+
+ARG PYTHON_IMAGE=python:3.12.8-slim-bookworm
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.16
+ARG GO_IMAGE=golang:1.26.10-bookworm
+ARG GOCSAF_VERSION=v3.7.1
+
+FROM ${GO_IMAGE} AS gocsaf
+
+ARG GOCSAF_VERSION
+
+ENV CGO_ENABLED=0 \
+    GOTOOLCHAIN=local \
+    GOFLAGS=-trimpath
+
+RUN go install github.com/gocsaf/csaf/v3/cmd/csaf_downloader@${GOCSAF_VERSION} \
+    && go install github.com/gocsaf/csaf/v3/cmd/csaf_validator@${GOCSAF_VERSION}
+
+FROM ${UV_IMAGE} AS uv
+
+FROM ${PYTHON_IMAGE} AS runtime
+
+ARG BUILD_VERSION=dev
+ARG GOCSAF_VERSION
+
+LABEL org.opencontainers.image.title="OSAK ingestion worker" \
+      org.opencontainers.image.description="OSAK scheduler, connectors and CSAF tooling" \
+      org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.vendor="Scogo.AI" \
+      org.opencontainers.image.documentation="https://github.com/gocsaf/csaf" \
+      org.opencontainers.image.ref.name="gocsaf-${GOCSAF_VERSION}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:${PATH}"
+
+WORKDIR /app
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+COPY --from=gocsaf /go/bin/csaf_downloader /usr/local/bin/csaf_downloader
+COPY --from=gocsaf /go/bin/csaf_validator /usr/local/bin/csaf_validator
+
+RUN addgroup --system --gid 10001 osak \
+    && adduser --system --uid 10001 --ingroup osak --home /app osak \
+    && mkdir -p /var/lib/osak/data /var/lib/osak/backups \
+    && chown -R 10001:10001 /app /var/lib/osak
+
+COPY . .
+
+RUN uv sync --locked --no-dev \
+    && chown -R 10001:10001 /app
+
+USER 10001:10001
+
+# The worker must update this file after each completed source poll. Checking
+# both process liveness and freshness catches a wedged scheduler as well as a
+# missing gocsaf binary. The ingestion package owns the heartbeat write; the
+# default is shared by local and production Compose files.
+ENV OSAK_WORKER_HEARTBEAT_FILE=/var/lib/osak/data/worker-heartbeat
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=20s --retries=3 \
+  CMD /bin/sh -ec 'test -s "$OSAK_WORKER_HEARTBEAT_FILE" \
+    && test "$(find "$OSAK_WORKER_HEARTBEAT_FILE" -mmin -5 -print)" = "$OSAK_WORKER_HEARTBEAT_FILE" \
+    && csaf_validator --version >/dev/null'
+
+CMD ["python", "-m", "osak.ingest"]

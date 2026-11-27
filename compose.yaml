@@ -1,0 +1,10 @@
+# The root entry point keeps the quick start contract simple:
+#
+#     docker compose up --build
+#
+# Production is deliberately explicit: use
+# `deploy/docker-compose.prod.yml` with the host-only `.env` file.
+name: ${OSAK_LOCAL_COMPOSE_PROJECT:-osak-local}
+
+include:
+  - path: deploy/docker-compose.yml

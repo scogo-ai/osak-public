@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "osak"
+version = "0.1.0"
+description = "Open Security Advisory Kosh"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+dependencies = [
+ "pydantic[email]>=2.11,<3", "pydantic-settings>=2.8,<3",
+ "fastapi>=0.119,<1", "uvicorn>=0.34,<1", "sqlalchemy>=2.0,<3",
+ "alembic>=1.15,<2", "psycopg[binary]>=3.2,<4", "mcp>=1.20,<2",
+ "httpx>=0.28,<1", "typer>=0.16,<1", "beautifulsoup4>=4.13,<5",
+ "defusedxml>=0.7,<1"
+]
+[project.entry-points."osak.connectors"]
+cvelistv5 = "osak.connectors.cvelistv5:CveListV5Connector"
+cisa_kev = "osak.connectors.cisa_kev:CisaKevConnector"
+first_epss = "osak.connectors.first_epss:FirstEpssConnector"
+nvd = "osak.connectors.nvd:NvdConnector"
+
+cisco_openvuln = "osak.connectors.cisco:CiscoOpenVulnConnector"
+cisco_csaf = "osak.connectors.cisco:CiscoCsafConnector"
+cisco_eox = "osak.connectors.cisco:CiscoEoxConnector"
+cisco_asa_compatibility = "osak.connectors.cisco_asa_compat:CiscoAsaCompatibilityConnector"
+arista_csaf = "osak.connectors.arista:AristaCsafConnector"
+fortinet_psirt_rss = "osak.connectors.fortinet:FortinetRssConnector"
+endoflife_date_fortios = "osak.connectors.eol:EndOfLifeDateConnector"
+
+[project.scripts]
+osak = "osak.cli:main"
+[dependency-groups]
+dev = ["pytest>=8,<10", "hypothesis>=6,<7", "pytest-cov>=6,<8", "mypy>=1.15,<2", "ruff>=0.11,<1", "pytest-asyncio>=0.25,<2", "bandit>=1.8,<2", "pip-audit>=2.9,<3"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["zdr: zero-data-retention canary and sink checks"]
+[tool.mypy]
+strict = true
+[tool.ruff]
+line-length = 100
+extend-exclude = ["templates/oem"]
+[tool.ruff.lint]
+# FastAPI/Typer dependency declarations intentionally use call expressions in
+# defaults; Ruff's B008 rule is not actionable for these framework contracts.
+ignore = ["B008"]

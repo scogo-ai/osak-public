@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local Wrangler testing. Never commit .dev.vars.
+PUBLIC_ORIGIN=http://127.0.0.1:8000
+ORIGIN_SHARED_SECRET=replace-with-a-local-only-shared-secret
+ACCESS_SERVICE_TOKEN_ID=local-access-client-id
+ACCESS_TEAM_ISSUER=https://your-team.cloudflareaccess.com
+ACCESS_ADMIN_AUDIENCE=replace-with-the-admin-app-audience
+OSAK_ADMIN_ACCESS_TOKEN=local-only-admin-access-secret
+# Public runtime config is injected by the Worker; committed HTML stays blank.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+REPOSITORY_URL=

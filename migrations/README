@@ -1,0 +1,6 @@
+OSAK Alembic migrations.
+
+The database URL is read from DATABASE_URL by migrations/env.py.  The initial
+core migration owns only canonical dataset and ingestion bookkeeping tables;
+account/auth tables are intentionally added by a later migration owned by the
+accounts workstream.

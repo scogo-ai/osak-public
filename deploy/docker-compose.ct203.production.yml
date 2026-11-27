@@ -1,0 +1,122 @@
+# CT 203 production-mode profile. This is deliberately separate from
+# docker-compose.ct203.yml: it uses different host ports and Compose volumes,
+# keeps Mailpit out, fails closed when Turnstile is not configured, and enables
+# only the source IDs approved for structured public facts.
+
+name: ${OSAK_PROD_COMPOSE_PROJECT:-osak-ct203-prod}
+services:
+  postgres:
+    network_mode: host
+    ports: !reset []
+    environment:
+      POSTGRES_PORT: ${OSAK_CT_PROD_POSTGRES_PORT:-5434}
+    command:
+      - postgres
+      - -c
+      - listen_addresses=127.0.0.1
+      - -c
+      - port=${OSAK_CT_PROD_POSTGRES_PORT:-5434}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p $${POSTGRES_PORT} -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      network: host
+      args:
+        BUILD_VERSION: ${OSAK_CT_BUILD_VERSION:-ct203}
+    network_mode: host
+    environment:
+      OSAK_ENV: production
+      OSAK_KEY_PEPPER: ${OSAK_PROD_KEY_PEPPER:-${OSAK_KEY_PEPPER:?set OSAK_KEY_PEPPER}}
+      OSAK_ADMIN_ACCESS_TOKEN: ${OSAK_PROD_ADMIN_ACCESS_TOKEN:-${OSAK_ADMIN_ACCESS_TOKEN:?set OSAK_ADMIN_ACCESS_TOKEN}}
+      DATABASE_URL: ${OSAK_CT_PROD_DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-osak}:${POSTGRES_PASSWORD:-osak}@127.0.0.1:${OSAK_CT_PROD_POSTGRES_PORT:-5434}/${POSTGRES_DB:-osak}}
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      network: host
+      args:
+        BUILD_VERSION: ${OSAK_CT_BUILD_VERSION:-ct203}
+    network_mode: host
+    ports: !reset []
+    command:
+      - uvicorn
+      - osak.api.app:app
+      - --host
+      - 127.0.0.1
+      - --port
+      - ${OSAK_CT_PROD_API_PORT:-8001}
+      - --no-access-log
+    environment:
+      OSAK_ENV: production
+      OSAK_KEY_PEPPER: ${OSAK_PROD_KEY_PEPPER:-${OSAK_KEY_PEPPER:?set OSAK_KEY_PEPPER}}
+      OSAK_ADMIN_ACCESS_TOKEN: ${OSAK_PROD_ADMIN_ACCESS_TOKEN:-${OSAK_ADMIN_ACCESS_TOKEN:?set OSAK_ADMIN_ACCESS_TOKEN}}
+      OSAK_PUBLIC_MODE: "true"
+      OSAK_PUBLIC_BASE_URL: ${OSAK_CT_PROD_PUBLIC_BASE_URL:-https://osak.lab.scogo.ai}
+      OSAK_ENABLED_SOURCES: ${OSAK_PRODUCTION_SOURCES:-cvelistv5,cisa_kev,first_epss,nvd,cisco_openvuln,fortinet_psirt_rss,endoflife_date_fortios}
+      OSAK_VENDOR_SCOPE: ${OSAK_VENDOR_SCOPE-cisco,fortinet,arista}
+      OSAK_REVIEWED_SOURCE_ALLOWLIST: ${OSAK_REVIEWED_SOURCE_ALLOWLIST:-cisco_openvuln,fortinet_psirt_rss}
+      DATABASE_URL: ${OSAK_CT_PROD_DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-osak}:${POSTGRES_PASSWORD:-osak}@127.0.0.1:${OSAK_CT_PROD_POSTGRES_PORT:-5434}/${POSTGRES_DB:-osak}}
+      EMAIL_BACKEND: resend
+      MAILPIT_API_URL: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_STARTTLS: "true"
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.request;
+          request=urllib.request.Request("http://127.0.0.1:${OSAK_CT_PROD_API_PORT:-8001}/api/v1/health",headers={"X-OSAK-Origin-Secret":os.environ["OSAK_ORIGIN_SHARED_SECRET"]});
+          urllib.request.urlopen(request,timeout=3).close()
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+      network: host
+      args:
+        BUILD_VERSION: ${OSAK_CT_BUILD_VERSION:-ct203}
+        GOCSAF_VERSION: ${GOCSAF_VERSION:-v3.7.1}
+    network_mode: host
+    environment:
+      OSAK_ENV: production
+      OSAK_KEY_PEPPER: ${OSAK_PROD_KEY_PEPPER:-${OSAK_KEY_PEPPER:?set OSAK_KEY_PEPPER}}
+      OSAK_ADMIN_ACCESS_TOKEN: ${OSAK_PROD_ADMIN_ACCESS_TOKEN:-${OSAK_ADMIN_ACCESS_TOKEN:?set OSAK_ADMIN_ACCESS_TOKEN}}
+      OSAK_PUBLIC_MODE: "true"
+      OSAK_PUBLIC_BASE_URL: ${OSAK_CT_PROD_PUBLIC_BASE_URL:-https://osak.lab.scogo.ai}
+      OSAK_ENABLED_SOURCES: ${OSAK_PRODUCTION_SOURCES:-cvelistv5,cisa_kev,first_epss,nvd,cisco_openvuln,fortinet_psirt_rss,endoflife_date_fortios}
+      OSAK_VENDOR_SCOPE: ${OSAK_VENDOR_SCOPE-cisco,fortinet,arista}
+      OSAK_REVIEWED_SOURCE_ALLOWLIST: ${OSAK_REVIEWED_SOURCE_ALLOWLIST:-cisco_openvuln,fortinet_psirt_rss}
+      DATABASE_URL: ${OSAK_CT_PROD_DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-osak}:${POSTGRES_PASSWORD:-osak}@127.0.0.1:${OSAK_CT_PROD_POSTGRES_PORT:-5434}/${POSTGRES_DB:-osak}}
+      EMAIL_BACKEND: resend
+      MAILPIT_API_URL: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_STARTTLS: "true"
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backup:
+    network_mode: host
+    environment:
+      PGHOST: 127.0.0.1
+      PGPORT: ${OSAK_CT_PROD_POSTGRES_PORT:-5434}
+
+  cloudflared:
+    profiles: [public]
+    network_mode: host
+    command: [tunnel, --no-autoupdate, --loglevel, warn, run]

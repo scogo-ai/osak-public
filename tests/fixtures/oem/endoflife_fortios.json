@@ -1,0 +1,5 @@
+[
+  {"cycle": "8.0", "releaseDate": "2026-04-21", "eol": "2030-10-21", "lts": false, "support": "2029-04-21"},
+  {"cycle": "7.6", "releaseDate": "2024-07-25", "eol": "2030-01-25", "lts": false, "support": "2028-07-25"},
+  {"cycle": "7.4", "releaseDate": "2023-05-11", "eol": "2028-11-11", "lts": false, "support": "2027-05-11"}
+]

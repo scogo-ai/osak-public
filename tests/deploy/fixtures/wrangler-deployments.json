@@ -1,0 +1,26 @@
+[
+  {
+    "id": "older-deployment",
+    "created_on": "2026-11-25T10:00:00.000Z",
+    "versions": [
+      {
+        "version_id": "superseded-version",
+        "percentage": 100
+      }
+    ]
+  },
+  {
+    "id": "deployment-record-id",
+    "created_on": "2026-11-27T10:00:00.000Z",
+    "versions": [
+      {
+        "version_id": "active-worker-version",
+        "percentage": 100
+      },
+      {
+        "version_id": "old-worker-version",
+        "percentage": 0
+      }
+    ]
+  }
+]

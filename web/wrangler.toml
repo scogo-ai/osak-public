@@ -1,0 +1,23 @@
+name = "osak-web"
+main = "src/index.js"
+compatibility_date = "2026-11-27"
+workers_dev = false
+preview_urls = false
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+# The Custom Domain provisions TLS for this exact multi-level hostname.
+[env.production]
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "osak.lab.scogo.ai", custom_domain = true }]
+
+# PUBLIC_ORIGIN is intentionally not checked in. Set it in an environment
+# secret/variable to the private HTTPS origin reachable through cloudflared.
+# ORIGIN_SHARED_SECRET and Access service-token values are secrets as well.
+
+[observability]
+enabled = false

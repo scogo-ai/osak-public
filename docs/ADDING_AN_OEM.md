@@ -1,0 +1,8 @@
+# Add an OEM
+
+1. Generate a separate connector package with `uvx cookiecutter templates/oem`. Choose a unique source ID, importable package name and canonical vendor ID. Install the package alongside OSAK in the worker image. Its Python entry point is how the scheduler discovers it.
+2. Verify the feed's ownership, license, public redistribution permission, attribution, quota, credential scopes and normal update cadence. Add the result to DATA_SOURCES.md. Keep an unreviewed source in review state. For a paid connector, set its tier and require explicit configuration on a licensed private installation.
+3. Implement the three operations in osak.connectors.base. Bound response sizes, requests and retries, use a descriptive OSAK User-Agent, and restrict requests to publisher-controlled origins. Fetch from a durable cursor with an overlap for late updates. Stream bulk imports and preserve source revision and retrieval time.
+4. Normalize stable identifiers, vendor aliases, affected ranges, feature prerequisites and remediation references. Keep the evidence for each field. Map only product and version expressions the source establishes. Unsupported expressions or ambiguous device models must produce an unknown result.
+5. If the OS requires a new version grammar, implement the version protocol and register it with the scheme lookup. Test independent trains, release suffixes, vendor build numbers and malformed versions.
+6. Record minimal, redistributable source fixtures and an independent vendor oracle. Test fetch pagination, repeated polls, failures and normalized output. Run the full accuracy, privacy and coverage checks before enabling the connector. See CONNECTORS.md for the worker lifecycle.

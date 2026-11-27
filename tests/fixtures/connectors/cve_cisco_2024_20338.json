@@ -1,0 +1,60 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1",
+  "cveMetadata": {
+    "cveId": "CVE-2024-20338",
+    "state": "PUBLISHED",
+    "assignerShortName": "cisco",
+    "datePublished": "2024-03-06T16:29:33.440Z",
+    "dateUpdated": "2024-08-01T21:59:42.263Z"
+  },
+  "containers": {
+    "cna": {
+      "title": "Cisco Secure Client for Linux uncontrolled search path element",
+      "descriptions": [{"lang": "en", "value": "redacted source prose"}],
+      "affected": [
+        {
+          "vendor": "Cisco",
+          "product": "Cisco Secure Client",
+          "versions": [{"version": "N/A", "status": "affected"}]
+        },
+        {
+          "vendor": "Cisco",
+          "product": "Cisco IOS XE Software",
+          "versions": [{"version": "17.3.3a", "status": "affected"}]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-secure-privesc-sYxQO6ds",
+          "name": "cisco-sa-secure-privesc-sYxQO6ds"
+        },
+        {"url": "https://example.test/operational-exploit", "tags": ["exploit"]}
+      ],
+      "metrics": [
+        {
+          "format": "cvssV3_1",
+          "cvssV3_1": {"version": "3.1", "baseScore": 7.3, "baseSeverity": "HIGH"}
+        }
+      ]
+    },
+    "adp": [
+      {
+        "affected": [
+          {
+            "vendor": "cisco",
+            "product": "secure_client",
+            "versions": [
+              {
+                "version": "0",
+                "status": "affected",
+                "lessThan": "5.1.2.42",
+                "versionType": "custom"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

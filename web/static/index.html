@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="OSAK is an open, provenance-tracked vault for OEM security advisories and deterministic asset correlation.">
+    <meta name="theme-color" content="#f5f1e8">
+    <meta name="turnstile-site-key" content="">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <title>OSAK — Open Security Advisory Kosh</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="site-shell">
+      <header class="site-header" data-reveal>
+        <a class="wordmark" href="/" aria-label="OSAK home">
+          <span class="wordmark-mark" aria-hidden="true">O</span>
+          <span>OSAK</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="#how-it-works">How it works</a>
+          <a href="#coverage">Coverage</a>
+          <a href="#get-key">Get a key</a>
+          <a href="/docs">API docs</a>
+        </nav>
+        <button class="theme-toggle" type="button" id="theme-toggle" aria-pressed="false">
+          <span class="theme-icon" aria-hidden="true">◐</span>
+          <span class="theme-label">Use dark mode</span>
+        </button>
+      </header>
+
+      <main id="main-content">
+        <section class="hero section-grid" aria-labelledby="hero-title">
+          <div class="hero-spine" aria-hidden="true">
+            <span>Kosh</span>
+            <span>कोष</span>
+            <span>ZDR</span>
+          </div>
+          <div class="hero-copy" data-reveal>
+            <p class="eyebrow"><span class="signal-dot" aria-hidden="true"></span>Zero Data Retention by design</p>
+            <h1 id="hero-title">OSAK <span>—</span> Open Security Advisory Kosh</h1>
+            <p class="hero-lede">One open vault for OEM security advisories. Correlate the versions you run with facts you can trace back to their source.</p>
+            <p class="kosh-note"><strong>Kosh</strong> (कोष) means a treasury or central repository: a place to keep what matters, ready to find.</p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#get-key">Request a free key <span aria-hidden="true">↘</span></a>
+              <a class="button button-quiet" href="/docs">Read the API docs</a>
+            </div>
+          </div>
+          <div class="hero-ledger" aria-label="OSAK data handling summary" data-reveal>
+            <div class="ledger-topline"><span>Data handling</span></div>
+            <div class="ledger-seal" aria-hidden="true">
+              <span class="seal-ring"></span>
+              <span class="seal-core">Z</span>
+            </div>
+            <div class="ledger-title">Your inventory stays yours.</div>
+            <p>Match requests are evaluated in memory. We never store the assets you send.</p>
+            <div class="ledger-rule"></div>
+            <dl class="ledger-facts">
+              <div><dt>Sources</dt><dd>OEM + backbone</dd></div>
+              <div><dt>Verdicts</dt><dd>Affected / unknown</dd></div>
+              <div><dt>Request metadata</dt><dd>90 days</dd></div>
+              <div><dt>Account details</dt><dd>Account lifetime</dd></div>
+            </dl>
+            <div class="ledger-stamp">Provenance first</div>
+          </div>
+        </section>
+
+        <section class="section section-flow" id="how-it-works" aria-labelledby="flow-title">
+          <div class="section-heading" data-reveal>
+            <p class="section-index">The operating loop</p>
+            <h2 id="flow-title">From scattered bulletins to a clear next move.</h2>
+            <p>OSAK keeps the logic deterministic and the evidence visible, so a useful answer does not require a leap of faith.</p>
+          </div>
+          <div class="flow-grid" data-reveal>
+            <article class="flow-step">
+              <span class="step-mark" aria-hidden="true">↗</span>
+              <h3>Aggregate</h3>
+              <p>Normalize OEM PSIRT feeds and public vulnerability signals into one advisory index.</p>
+              <span class="step-caption">facts with provenance</span>
+            </article>
+            <article class="flow-step flow-step-active">
+              <span class="step-mark" aria-hidden="true">⌁</span>
+              <h3>Correlate</h3>
+              <p>Compare vendor, product, model, OS, and version against train-aware affected ranges.</p>
+              <span class="step-caption">unknown is a safe answer</span>
+            </article>
+            <article class="flow-step">
+              <span class="step-mark" aria-hidden="true">↘</span>
+              <h3>Act</h3>
+              <p>Return fixed versions, workarounds, priority signals, and the source links to verify them.</p>
+              <span class="step-caption">a plan you can audit</span>
+            </article>
+          </div>
+          <div class="sample-panel" data-reveal>
+            <div class="sample-intro">
+              <p class="section-index">A small request</p>
+              <h3>Ask about the device, not the whole world.</h3>
+              <p>Send only what is needed for this check. The service returns structured facts; it never adds your inventory to the advisory store.</p>
+            </div>
+            <div class="code-window">
+              <div class="code-window-bar"><span class="window-dot window-dot-red"></span><span class="window-dot window-dot-yellow"></span><span class="window-dot window-dot-green"></span><span class="code-language">POST /api/v1/match</span><button class="copy-button" type="button" data-copy-target="match-request">Copy request</button></div>
+              <pre id="match-request"><code><span class="code-dim">curl</span> <span class="code-cyan">-X POST</span> https://osak.lab.scogo.ai/api/v1/match \
+  <span class="code-cyan">-H</span> <span class="code-string">'X-API-Key: osak_live_…'</span> \
+  <span class="code-cyan">-d</span> <span class="code-string">'{"assets":[{"asset_ref":"edge-01","vendor":"fortinet","os":"fortios","version":"7.2.5"}]}'</span></code></pre>
+            </div>
+            <div class="response-window">
+              <div class="response-label"><span class="response-check" aria-hidden="true">✓</span>Structured response</div>
+              <pre><code>{
+  <span class="code-key">"verdict"</span>: <span class="code-string">"unknown"</span>,
+  <span class="code-key">"reasons"</span>: [<span class="code-string">"version range needs review"</span>],
+  <span class="code-key">"provenance"</span>: [<span class="code-string">"Fortinet PSIRT"</span>]
+}</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="section coverage-section" id="coverage" aria-labelledby="coverage-title">
+          <div class="coverage-heading" data-reveal>
+            <div>
+              <p class="section-index">The coverage ledger</p>
+              <h2 id="coverage-title">A living index, with its sources named.</h2>
+            </div>
+            <div class="coverage-status" id="coverage-status" role="status" aria-live="polite"><span class="status-pip" aria-hidden="true"></span><span id="coverage-status-label">Checking source health…</span></div>
+          </div>
+          <div class="source-table-wrap" data-reveal>
+            <table class="source-table">
+              <caption class="visually-hidden">OSAK advisory and enrichment sources</caption>
+              <thead><tr><th scope="col">Source</th><th scope="col">Role</th><th scope="col">Last successful sync</th><th scope="col">Status</th></tr></thead>
+              <tbody id="source-list">
+                <tr><td data-label="Source">Cisco PSIRT</td><td data-label="Role">OEM advisory</td><td data-label="Last successful sync">Not reported</td><td data-label="Status"><span class="table-status table-status-pending">Waiting for API</span></td></tr>
+                <tr><td data-label="Source">Fortinet PSIRT</td><td data-label="Role">OEM advisory</td><td data-label="Last successful sync">Not reported</td><td data-label="Status"><span class="table-status table-status-pending">Waiting for API</span></td></tr>
+                <tr><td data-label="Source">Arista CSAF</td><td data-label="Role">OEM advisory</td><td data-label="Last successful sync">Not reported</td><td data-label="Status"><span class="table-status table-status-pending">Waiting for API</span></td></tr>
+                <tr><td data-label="Source">CVE List V5 · CISA KEV · FIRST EPSS</td><td data-label="Role">Backbone signals</td><td data-label="Last successful sync">Not reported</td><td data-label="Status"><span class="table-status table-status-pending">Waiting for API</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-footnote">Source names and sync times are read from <code>/api/v1/sources</code>. Structured facts keep their own attribution.</p>
+        </section>
+
+        <section class="section action-section" id="get-key" aria-labelledby="key-title">
+          <div class="action-card" data-reveal>
+            <div class="action-copy">
+              <p class="section-index">Start with a safe door</p>
+              <h2 id="key-title">Get a free API key.</h2>
+              <p>Tell us where to send your one-time API key. After the Turnstile and terms checks, we’ll email the key once.</p>
+              <p class="small-copy">One active key per email by default. If this email already has an active key, we won’t revoke it or issue a second one.</p>
+            </div>
+            <form class="signup-form" id="signup-form" novalidate>
+              <div class="field-row">
+                <label for="full-name">Full name <span aria-hidden="true">*</span></label>
+                <input id="full-name" name="name" type="text" autocomplete="name" required maxlength="256">
+              </div>
+              <div class="field-row">
+                <label for="organization">Organization <span aria-hidden="true">*</span></label>
+                <input id="organization" name="organization" type="text" autocomplete="organization" required maxlength="256">
+              </div>
+              <div class="field-row">
+                <label for="email">Work email <span aria-hidden="true">*</span></label>
+                <input id="email" name="email" type="email" autocomplete="email" required maxlength="320">
+              </div>
+              <div class="turnstile-slot" id="turnstile-widget" data-sitekey="" aria-live="polite">
+                <span class="turnstile-placeholder" aria-hidden="true">◎</span>
+                <span>Spam protection loads when this instance is configured.</span>
+              </div>
+              <input type="hidden" id="turnstile-token" name="turnstile_token" value="">
+              <div class="terms-field">
+                <input id="accept-terms" name="accept_terms" type="checkbox" required>
+                <label for="accept-terms">I agree to the <a href="/terms">terms of use</a> and have read the <a href="/privacy">privacy note</a>.</label>
+              </div>
+              <button class="button button-primary button-submit" type="submit">Email me an API key <span aria-hidden="true">↗</span></button>
+              <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+              <p class="form-footnote">One submission means one key email when eligible. Repeated requests stay generic and never revoke an active key.</p>
+            </form>
+          </div>
+        </section>
+
+        <section class="section use-section" id="use-it" aria-labelledby="use-title">
+          <div class="section-heading" data-reveal>
+            <p class="section-index">The open door</p>
+            <h2 id="use-title">Use the facts where your team already works.</h2>
+            <p>Test the API in Swagger, then connect Claude Code or Codex with the same key.</p>
+          </div>
+          <div class="use-grid" data-reveal>
+            <article class="use-card">
+              <div class="use-card-head"><span class="use-icon" aria-hidden="true">$</span><h3>REST API</h3></div>
+              <p>Small, explicit endpoints for vendors, advisories, matching, EoL, and dataset changes.</p>
+              <a class="text-link" href="/quickstart#swagger-title">Test in Swagger <span aria-hidden="true">↗</span></a>
+            </article>
+            <article class="use-card use-card-code">
+              <div class="use-card-head"><span class="use-icon" aria-hidden="true">⌘</span><h3>MCP</h3></div>
+              <p>Seven focused tools over Streamable HTTP, using the same key and quotas as REST.</p>
+              <div class="mini-code"><code>{ <span>"url"</span>: <b>"https://osak.lab.scogo.ai/mcp"</b> }</code><button class="copy-button" type="button" data-copy-target="mcp-url">Copy</button></div>
+              <span class="visually-hidden" id="mcp-url">https://osak.lab.scogo.ai/mcp</span>
+              <a class="text-link" href="/quickstart#mcp-title">Connect Claude Code or Codex <span aria-hidden="true">↗</span></a>
+            </article>
+            <article class="use-card">
+              <div class="use-card-head"><span class="use-icon" aria-hidden="true">◌</span><h3>Open source</h3></div>
+              <p>Apache-2.0 code, structured source attribution, and a dataset export for local matching.</p>
+              <a class="text-link repository-link" data-repository-link href="#" hidden aria-hidden="true" aria-disabled="true">View the repository <span aria-hidden="true">↗</span></a>
+              <span class="small-copy repo-note" id="repository-pending">The repository owner and URL will be added after the public project is created.</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="section privacy-section" id="privacy" aria-labelledby="privacy-title">
+          <div class="privacy-card" data-reveal>
+            <div class="privacy-mark" aria-hidden="true">ZDR</div>
+            <div>
+              <p class="section-index">A precise promise</p>
+              <h2 id="privacy-title">Your inventory is not our dataset.</h2>
+              <p>We never store the assets you send. We keep account details for the life of the account. We keep request metadata (endpoint, time, status) for 90 days for quotas and abuse prevention.</p>
+              <div class="privacy-links"><a class="text-link" href="/privacy">Read the privacy note <span aria-hidden="true">↗</span></a><a class="text-link" href="/terms">Read the terms of use <span aria-hidden="true">↗</span></a></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="footer-brand"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span><span class="footer-separator">/</span><span>Built by Scogo.AI</span></div>
+        <div class="footer-links"><a href="/api/v1/health">Service health</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span>Apache-2.0 · source attribution included</span></div>
+      </footer>
+    </div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

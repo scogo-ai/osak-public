@@ -1,0 +1,6 @@
+# Historical parser test containing the literal dummy key osak_test_abc_DEF-123.
+0dabcd4e3ac841c89f09b5df718b43856f101925:tests/qa/test_signup_admin_smoke.py:generic-api-key:7
+# Historical runbook curl example containing the literal placeholder osak_test_REDACTED.
+a80dd9f035f81010955a497f4c34f54b7fc12c48:deploy/cloudflare/RUNBOOK.md:curl-auth-header:60
+# The same inert parser fixture moved to line 5 when the verification-link tests were removed.
+ecb24103c517d6d32e3d11fe28c2ebfa4ff1ae48:tests/qa/test_signup_admin_smoke.py:generic-api-key:5

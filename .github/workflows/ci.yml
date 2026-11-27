@@ -1,0 +1,313 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python, contract and security checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_DB: osak
+          POSTGRES_USER: osak
+          POSTGRES_PASSWORD: osak-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U osak -d osak"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://osak:osak-ci@127.0.0.1:5432/osak
+      OSAK_KEY_PEPPER: ci-only-key-pepper
+      OSAK_ORIGIN_SHARED_SECRET: ci-only-origin-secret
+      OSAK_PUBLIC_BASE_URL: http://127.0.0.1:8000
+      OSAK_EMAIL_FROM: OSAK CI <ci@example.invalid>
+      OSAK_ADMIN_ACCESS_TOKEN: ci-only-admin-token
+      MAILPIT_API_URL: http://mailpit:8025
+      EMAIL_BACKEND: test
+      TURNSTILE_SECRET_KEY: ''
+      OSAK_ENV: test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.16'
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Strict match and version typing
+        run: uv run mypy src/osak/match src/osak/versions
+
+      - name: Unit, contract and integration tests
+        env:
+          OSAK_TEST_DATABASE_URL: postgresql+psycopg://osak:osak-ci@127.0.0.1:5432/osak
+          OSAK_RUN_ACCOUNTS_INTEGRATION: "1"
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run pytest --cov=osak --cov-report=term-missing --cov-fail-under=70
+          uv run coverage report --include="*/osak/match/*" --fail-under=85
+          uv run coverage report --include="*/osak/versions/*" --fail-under=85
+
+      - name: ZDR canary test
+        run: uv run pytest -m zdr -q
+
+      - name: OpenAPI contract diff
+        run: uv run python deploy/scripts/check-openapi.py contracts/openapi.json
+
+      - name: Bandit
+        run: uv run bandit -r src -q
+
+      - name: Dependency audit
+        run: uv run pip-audit
+
+      - name: Validate Compose files
+        run: |
+          docker compose -f deploy/docker-compose.yml config --quiet
+          POSTGRES_USER=osak POSTGRES_PASSWORD=osak-ci \
+          OSAK_KEY_PEPPER=ci-key-pepper \
+          OSAK_ORIGIN_SHARED_SECRET=ci-origin-secret \
+          OSAK_PUBLIC_BASE_URL=https://osak.lab.scogo.ai \
+          OSAK_EMAIL_FROM='OSAK CI <ci@example.invalid>' \
+          OSAK_ADMIN_ACCESS_TOKEN=ci-admin-token \
+          RESEND_API_KEY=ci-resend \
+          TURNSTILE_SECRET_KEY=ci-turnstile \
+          CLOUDFLARED_TUNNEL_TOKEN=ci-cloudflared \
+          OSAK_API_IMAGE=ghcr.io/example/osak-api \
+          OSAK_WORKER_IMAGE=ghcr.io/example/osak-worker \
+          OSAK_IMAGE_TAG=ci-image \
+          docker compose -f deploy/docker-compose.prod.yml config --quiet
+
+      - name: Web lint and build
+        if: ${{ hashFiles('web/package.json') != '' }}
+        working-directory: web
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+          npm run lint
+          npm run check
+          npm test
+          npm run build
+          test -s dist/index.html
+
+      - name: Scan Git history for secrets with Gitleaks 8.30.1
+        run: |
+          docker run --rm --network=none -v "$GITHUB_WORKSPACE:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact=100 --no-banner --log-opts=HEAD --gitleaks-ignore-path=/repo/.gitleaksignore /repo
+
+  zdr-live:
+    name: Live REST, MCP and ZDR canary
+    runs-on: ubuntu-latest
+    needs: quality
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_DB: osak
+          POSTGRES_USER: osak
+          POSTGRES_PASSWORD: osak-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U osak -d osak"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://osak:osak-ci@127.0.0.1:5432/osak
+      OSAK_ENV: test
+      OSAK_KEY_PEPPER: ci-only-key-pepper
+      OSAK_ORIGIN_SHARED_SECRET: ci-only-origin-secret
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.16'
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Migrate and seed a disposable canary account
+        run: |
+          uv run alembic upgrade head
+          echo "OSAK_ZDR_API_KEY=$(uv run osak seed --dev)" >> "$GITHUB_ENV"
+      - name: Run live API, sink and end-to-end canary
+        run: |
+          api_log="$RUNNER_TEMP/osak-api.log"
+          sink_log="$RUNNER_TEMP/osak-sink.log"
+          : > "$api_log"
+          uv run uvicorn osak.api.app:app --host 127.0.0.1 --port 8000 > "$api_log" 2>&1 &
+          api_pid=$!
+          uv run python scripts/qa/live_log_sink.py --file "$api_log" --port 8765 > "$sink_log" 2>&1 &
+          sink_pid=$!
+          trap 'kill "$sink_pid" "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/health >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              sed -n '1,240p' "$api_log"
+              exit 1
+            fi
+            sleep 1
+          done
+          uv run python scripts/qa/zdr_canary.py \
+            --base-url http://127.0.0.1:8000 \
+            --api-key "$OSAK_ZDR_API_KEY" \
+            --db-url "$DATABASE_URL" \
+            --log-sink-url http://127.0.0.1:8765/logs
+
+  containers:
+    name: Build container images
+    runs-on: ubuntu-latest
+    needs: quality
+    if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: false
+          tags: osak/api:ci
+          build-args: |
+            BUILD_VERSION=${{ github.sha }}
+
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.worker
+          push: false
+          tags: osak/worker:ci
+          build-args: |
+            BUILD_VERSION=${{ github.sha }}
+            GOCSAF_VERSION=v3.7.1
+
+  local-signup-admin:
+    name: Mailpit signup and admin smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OSAK_COMPOSE_PROJECT: osak-qa-${{ github.run_id }}
+      OSAK_COMPOSE_ENV_FILE: /tmp/osak-compose-${{ github.run_id }}-${{ github.run_attempt }}.env
+      OSAK_API_PORT: '18126'
+      MAILPIT_UI_PORT: '18026'
+      MAILPIT_SMTP_PORT: '11026'
+      POSTGRES_PORT: '15436'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.16'
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Prepare isolated Compose environment
+        run: |
+          set -Eeuo pipefail
+          key_pepper=$(python -c 'import secrets; print(secrets.token_hex(32))')
+          umask 077
+          cat >"$OSAK_COMPOSE_ENV_FILE" <<EOF
+          OSAK_LOCAL_COMPOSE_PROJECT=$OSAK_COMPOSE_PROJECT
+          OSAK_ENV=local
+          OSAK_BUILD_VERSION=qa-${GITHUB_SHA}
+          LOG_LEVEL=INFO
+          POSTGRES_IMAGE=postgres:16.6-alpine
+          POSTGRES_DB=osak
+          POSTGRES_USER=osak
+          POSTGRES_PASSWORD=qa-postgres-password
+          POSTGRES_PORT=$POSTGRES_PORT
+          OSAK_API_PORT=$OSAK_API_PORT
+          MAILPIT_IMAGE=axllent/mailpit:v1.21.8
+          MAILPIT_SMTP_PORT=$MAILPIT_SMTP_PORT
+          MAILPIT_UI_PORT=$MAILPIT_UI_PORT
+          MAILPIT_MAX_MESSAGES=5000
+          OSAK_KEY_PEPPER=$key_pepper
+          OSAK_ORIGIN_SHARED_SECRET=
+          OSAK_PUBLIC_BASE_URL=http://127.0.0.1:$OSAK_API_PORT
+          OSAK_EMAIL_FROM=OSAK QA <osak@example.com>
+          OSAK_ADMIN_ACCESS_TOKEN=local-admin-token
+          EMAIL_BACKEND=mailpit
+          MAILPIT_API_URL=http://mailpit:8025
+          SMTP_HOST=mailpit
+          SMTP_PORT=1025
+          SMTP_STARTTLS=false
+          TURNSTILE_SECRET_KEY=
+          INGEST_ENABLED=false
+          EOF
+          sed -i 's/^          //' "$OSAK_COMPOSE_ENV_FILE"
+      - name: Start isolated local stack
+        run: |
+          set -Eeuo pipefail
+          docker compose --env-file "$OSAK_COMPOSE_ENV_FILE" -p "$OSAK_COMPOSE_PROJECT" up -d --build
+      - name: Wait for API and Mailpit
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error "http://127.0.0.1:$OSAK_API_PORT/api/v1/health" >/dev/null \
+              && curl --fail --silent --show-error "http://127.0.0.1:$MAILPIT_UI_PORT/api/v1/messages" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose --env-file "$OSAK_COMPOSE_ENV_FILE" -p "$OSAK_COMPOSE_PROJECT" ps
+          exit 1
+      - name: Run signup and admin smoke
+        env:
+          OSAK_BASE_URL: http://127.0.0.1:${{ env.OSAK_API_PORT }}
+          MAILPIT_URL: http://127.0.0.1:${{ env.MAILPIT_UI_PORT }}
+          OSAK_ADMIN_ACCESS: local-admin-token
+        run: uv run python scripts/qa/signup_admin_smoke.py
+      - name: Show local stack logs on failure
+        if: ${{ failure() }}
+        run: docker compose --env-file "$OSAK_COMPOSE_ENV_FILE" -p "$OSAK_COMPOSE_PROJECT" logs --no-color --tail=200 api mailpit postgres
+      - name: Tear down isolated local stack
+        if: ${{ always() }}
+        run: docker compose --env-file "$OSAK_COMPOSE_ENV_FILE" -p "$OSAK_COMPOSE_PROJECT" down --volumes --remove-orphans

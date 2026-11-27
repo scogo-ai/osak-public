@@ -1,0 +1,448 @@
+name: Deploy
+
+on:
+  # Deploy only after the exact main-branch commit has passed CI, including
+  # the source-backed accuracy job. Pull-request CI runs are never deployable.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA whose successful CI run should be deployed
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate on same-SHA CI
+    runs-on: ubuntu-latest
+    if: >-
+      ${{ vars.OSAK_PRODUCTION_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success')) }}
+    outputs:
+      target_sha: ${{ steps.verify.outputs.target_sha }}
+    steps:
+      - name: Verify successful CI run for target SHA
+        id: verify
+        uses: actions/github-script@v7
+        env:
+          MANUAL_SHA: ${{ inputs.sha }}
+        with:
+          script: |
+            const targetSha = context.eventName === "workflow_run"
+              ? context.payload.workflow_run.head_sha
+              : (process.env.MANUAL_SHA || context.sha);
+            const { owner, repo } = context.repo;
+            if (!/^[a-f0-9]{40}$/.test(targetSha)) {
+              throw new Error("Deploy requires a full commit SHA");
+            }
+            const response = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: "ci.yml",
+              branch: "main",
+              event: "push",
+              head_sha: targetSha,
+              per_page: 100,
+            });
+            const ciRuns = response.data.workflow_runs
+              .filter((run) => run.head_sha === targetSha && run.head_repository?.full_name === context.payload.repository.full_name)
+              .sort((left, right) => right.run_number - left.run_number);
+            if (ciRuns.length === 0 || ciRuns[0].conclusion !== "success" || ciRuns[0].head_branch !== "main") {
+              throw new Error(`CI has not passed on main for ${targetSha}`);
+            }
+            core.setOutput("target_sha", targetSha);
+            core.notice(`Deploying CI-verified commit ${targetSha}`);
+
+  origin_state:
+    name: Read last successfully deployed revision
+    runs-on: ubuntu-latest
+    needs: gate
+    environment: production
+    outputs:
+      deployed_sha: ${{ steps.state.outputs.deployed_sha }}
+    env:
+      OSAK_ORIGIN_SSH_HOST: ${{ vars.OSAK_ORIGIN_SSH_HOST || 'osak-ssh.scogo.ai' }}
+      OSAK_ORIGIN_SSH_USER: ${{ vars.OSAK_ORIGIN_SSH_USER || 'scogo' }}
+      OSAK_ORIGIN_SSH_KEY: ${{ secrets.OSAK_ORIGIN_SSH_KEY }}
+      OSAK_ORIGIN_SSH_KNOWN_HOSTS: ${{ secrets.OSAK_ORIGIN_SSH_KNOWN_HOSTS }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.OSAK_CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.target_sha }}
+      - name: Configure origin SSH
+        run: .github/scripts/setup-origin-ssh.sh
+      - name: Read deployment state
+        id: state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deployed_sha=$(ssh -F "$OSAK_SSH_CONFIG" osak-origin state)
+          if [[ ! "$deployed_sha" =~ ^[0-9a-fA-F]{40,128}$ ]]; then
+            deployed_sha=none
+          fi
+          echo "deployed_sha=$deployed_sha" >>"$GITHUB_OUTPUT"
+          printf 'Last deployed revision: %s\n' "$deployed_sha"
+
+  changes:
+    name: Detect deploy scope
+    runs-on: ubuntu-latest
+    needs: [gate, origin_state]
+    outputs:
+      target_sha: ${{ needs.gate.outputs.target_sha }}
+      base_sha: ${{ steps.filter.outputs.base_sha }}
+      full_redeploy: ${{ steps.filter.outputs.full_redeploy }}
+      backend: ${{ steps.filter.outputs.backend }}
+      website: ${{ steps.filter.outputs.website }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.target_sha }}
+          fetch-depth: 0
+      - name: Classify changed paths
+        id: filter
+        env:
+          TARGET_SHA: ${{ needs.gate.outputs.target_sha }}
+          BASE_SHA: ${{ needs.origin_state.outputs.deployed_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          full_redeploy=false
+          base_sha=$BASE_SHA
+          if [[ "$base_sha" == "none" || ! "$base_sha" =~ ^[0-9a-fA-F]{40,128}$ ]]; then
+            full_redeploy=true
+            changed=$(git ls-tree -r --name-only "$TARGET_SHA")
+          else
+            if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+              git fetch --no-tags origin "$base_sha" --depth=1
+            fi
+            if ! git merge-base --is-ancestor "$base_sha" "$TARGET_SHA"; then
+              full_redeploy=true
+              changed=$(git ls-tree -r --name-only "$TARGET_SHA")
+            else
+              changed=$(git diff --name-only "$base_sha" "$TARGET_SHA")
+            fi
+          fi
+          backend=false
+          website=false
+          while IFS= read -r path; do
+            case "$path" in
+              src/*|migrations/*|pyproject.toml|uv.lock|contracts/*|deploy/Dockerfile.*|deploy/docker-compose*.yml|deploy/scripts/*|.env.example|compose.yaml|.github/workflows/deploy.yml)
+                backend=true ;;
+              web/*)
+                website=true ;;
+            esac
+          done <<< "$changed"
+          if [[ "$full_redeploy" == true ]]; then
+            backend=true
+            website=true
+          fi
+          echo "base_sha=$base_sha" >>"$GITHUB_OUTPUT"
+          echo "full_redeploy=$full_redeploy" >>"$GITHUB_OUTPUT"
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "website=$website" >> "$GITHUB_OUTPUT"
+          printf 'Target %s: backend=%s website=%s\n' "$TARGET_SHA" "$backend" "$website"
+
+  images:
+    name: Build and publish backend images
+    runs-on: ubuntu-latest
+    needs: [gate, origin_state, changes]
+    # Publishing a verified image can proceed while origin Access is offline.
+    # The deployment jobs still require a successful origin scope check.
+    if: >-
+      ${{ always() && needs.gate.result == 'success' &&
+      (needs.changes.outputs.backend == 'true' || needs.origin_state.result == 'failure') }}
+    outputs:
+      image_prefix: ${{ steps.vars.outputs.image_prefix }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.target_sha }}
+
+      - name: Compute image prefix
+        id: vars
+        shell: bash
+        run: |
+          repository=$(printf '%s' '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "image_prefix=ghcr.io/${repository}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: true
+          tags: ${{ steps.vars.outputs.image_prefix }}-api:${{ needs.gate.outputs.target_sha }}
+          build-args: BUILD_VERSION=${{ needs.gate.outputs.target_sha }}
+          cache-from: type=gha,scope=osak-api
+          cache-to: type=gha,mode=max,scope=osak-api
+
+      - name: Build and publish worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.worker
+          push: true
+          tags: ${{ steps.vars.outputs.image_prefix }}-worker:${{ needs.gate.outputs.target_sha }}
+          build-args: |
+            BUILD_VERSION=${{ needs.gate.outputs.target_sha }}
+            GOCSAF_VERSION=v3.7.1
+          cache-from: type=gha,scope=osak-worker
+          cache-to: type=gha,mode=max,scope=osak-worker
+
+  backend:
+    name: Deploy and smoke-test backend
+    # The GitHub-hosted runner reaches the origin only through the dedicated
+    # Cloudflare Access SSH route. It never receives a privileged runner token.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [changes, images]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    environment: production
+    env:
+      OSAK_ORIGIN_SSH_HOST: ${{ vars.OSAK_ORIGIN_SSH_HOST || 'osak-ssh.scogo.ai' }}
+      OSAK_ORIGIN_SSH_USER: ${{ vars.OSAK_ORIGIN_SSH_USER || 'scogo' }}
+      OSAK_ORIGIN_SSH_KEY: ${{ secrets.OSAK_ORIGIN_SSH_KEY }}
+      OSAK_ORIGIN_SSH_KNOWN_HOSTS: ${{ secrets.OSAK_ORIGIN_SSH_KNOWN_HOSTS }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.OSAK_CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
+      TARGET_SHA: ${{ needs.changes.outputs.target_sha }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+
+      - name: Configure origin SSH
+        run: .github/scripts/setup-origin-ssh.sh
+
+      - name: Install allowlisted deploy controls on origin host
+        run: |
+          set -Eeuo pipefail
+          { printf '%s\n' "$TARGET_SHA"; \
+            tar -C deploy -czf - \
+              docker-compose.prod.yml docker-compose.ct203.production.yml \
+              scripts/deploy-backend.sh scripts/rollback.sh scripts/smoke.sh scripts/smoke_mcp.py scripts/backup.sh; } | \
+            ssh -F "$OSAK_SSH_CONFIG" osak-origin install
+
+      - name: Log in to GHCR on origin host with workflow token
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh -F "$OSAK_SSH_CONFIG" osak-origin ghcr-login
+
+      - name: Deploy immutable backend image
+        id: backend_deploy
+        run: |
+          set -Eeuo pipefail
+          printf '%s\n' "$TARGET_SHA" | ssh -F "$OSAK_SSH_CONFIG" osak-origin deploy
+
+      - name: Host-network smoke tests
+        env:
+          OSAK_SMOKE_TEST_KEY: ${{ secrets.OSAK_SMOKE_TEST_KEY }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s\n' "$OSAK_SMOKE_TEST_KEY" | \
+            ssh -F "$OSAK_SSH_CONFIG" osak-origin smoke
+
+      - name: Roll back backend image after failed smoke
+        if: ${{ failure() && steps.backend_deploy.outcome == 'success' }}
+        run: |
+          set -Eeuo pipefail
+          ssh -F "$OSAK_SSH_CONFIG" osak-origin rollback
+
+      - name: Log out of GHCR on origin runner
+        if: ${{ always() }}
+        run: ssh -F "$OSAK_SSH_CONFIG" osak-origin logout || true
+
+  website:
+    name: Deploy and smoke-test website
+    runs-on: ubuntu-latest
+    needs: [changes, backend]
+    if: >-
+      ${{ always() && needs.changes.outputs.website == 'true' &&
+      (needs.changes.outputs.backend != 'true' || needs.backend.result == 'success') }}
+    environment: production
+    env:
+      OSAK_ORIGIN_SSH_HOST: ${{ vars.OSAK_ORIGIN_SSH_HOST || 'osak-ssh.scogo.ai' }}
+      OSAK_ORIGIN_SSH_USER: ${{ vars.OSAK_ORIGIN_SSH_USER || 'scogo' }}
+      OSAK_ORIGIN_SSH_KEY: ${{ secrets.OSAK_ORIGIN_SSH_KEY }}
+      OSAK_ORIGIN_SSH_KNOWN_HOSTS: ${{ secrets.OSAK_ORIGIN_SSH_KNOWN_HOSTS }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.OSAK_CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Python and uv for MCP smoke
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.16'
+          enable-cache: true
+      - name: Install locked Python dependencies
+        run: uv sync --locked
+      - name: Configure origin SSH for release state
+        run: .github/scripts/setup-origin-ssh.sh
+
+      - name: Build website
+        working-directory: web
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+          npm run lint
+          npm run build
+          test -s dist/index.html
+
+      - name: Record previous Worker deployment
+        id: previous_worker
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -Eeuo pipefail
+          list_error="$RUNNER_TEMP/wrangler-deployments.err"
+          set +e
+          deployments=$(npx --yes wrangler@4.168.0 deployments list --env production --json 2>"$list_error")
+          list_status=$?
+          set -e
+          previous=""
+          if [ "$list_status" -eq 0 ]; then
+            # Wrangler 4 emits an array ordered by creation time. Only the
+            # current single-version deployment can be restored by rollback.
+            previous=$(jq -er -f ../.github/scripts/previous-worker-version.jq <<<"$deployments")
+          elif grep -Eqi '10007|worker[^[:cntrl:]]*not found|no deployments' "$list_error"; then
+            printf 'No previous Worker deployment was found.\n'
+          else
+            cat "$list_error" >&2
+            exit "$list_status"
+          fi
+          echo "id=$previous" >>"$GITHUB_OUTPUT"
+          if [ -n "$previous" ]; then
+            printf 'Previous Worker deployment recorded.\n'
+          else
+            printf 'No previous Worker deployment; this is the initial release.\n'
+          fi
+
+      - name: Deploy production Worker and static assets
+        id: worker_deploy
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          ACCESS_TEAM_ISSUER: ${{ vars.ACCESS_TEAM_ISSUER }}
+          ACCESS_ADMIN_AUDIENCE: ${{ vars.ACCESS_ADMIN_AUDIENCE }}
+        run: |
+          set -Eeuo pipefail
+          args=(--env production --config wrangler.toml --keep-vars)
+          # Preserve the origin binding when setting the public site values.
+          if [[ -n "${TURNSTILE_SITE_KEY:-}" ]]; then
+            args+=(--var "TURNSTILE_SITE_KEY:${TURNSTILE_SITE_KEY}")
+          fi
+          : "${ACCESS_TEAM_ISSUER:?configure the admin Access team issuer}"
+          : "${ACCESS_ADMIN_AUDIENCE:?configure the admin Access application audience}"
+          args+=(--var "ACCESS_TEAM_ISSUER:$ACCESS_TEAM_ISSUER" --var "ACCESS_ADMIN_AUDIENCE:$ACCESS_ADMIN_AUDIENCE")
+          args+=(--var "REPOSITORY_URL:${{ github.server_url }}/${{ github.repository }}")
+          npx --yes wrangler@4.168.0 deploy "${args[@]}"
+
+      - name: Website smoke test
+        working-directory: web
+        env:
+          OSAK_BASE_URL: ${{ vars.OSAK_BASE_URL || 'https://osak.lab.scogo.ai' }}
+          OSAK_SMOKE_TEST_KEY: ${{ secrets.OSAK_SMOKE_TEST_KEY }}
+        run: |
+          ../deploy/scripts/smoke-website.sh
+          test -n "$OSAK_SMOKE_TEST_KEY"
+          uv run python ../deploy/scripts/smoke_mcp.py
+
+      - name: Record successful shared release revision
+        run: printf '%s\n' '${{ needs.changes.outputs.target_sha }}' | ssh -F "$OSAK_SSH_CONFIG" osak-origin record-release
+
+      - name: Restore previous Worker after smoke failure
+        if: ${{ failure() && steps.worker_deploy.outcome == 'success' && steps.previous_worker.outputs.id != '' }}
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS_WORKER: ${{ steps.previous_worker.outputs.id }}
+        run: npx --yes wrangler@4.168.0 rollback --yes "$PREVIOUS_WORKER" --env production --config wrangler.toml
+
+  rollback-shared:
+    name: Roll back backend after shared release failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, images, backend, website]
+    if: >-
+      ${{ always() && needs.changes.outputs.backend == 'true' &&
+      needs.changes.outputs.website == 'true' && needs.backend.result == 'success' &&
+      needs.website.result != 'success' }}
+    environment: production
+    env:
+      OSAK_ORIGIN_SSH_HOST: ${{ vars.OSAK_ORIGIN_SSH_HOST || 'osak-ssh.scogo.ai' }}
+      OSAK_ORIGIN_SSH_USER: ${{ vars.OSAK_ORIGIN_SSH_USER || 'scogo' }}
+      OSAK_ORIGIN_SSH_KEY: ${{ secrets.OSAK_ORIGIN_SSH_KEY }}
+      OSAK_ORIGIN_SSH_KNOWN_HOSTS: ${{ secrets.OSAK_ORIGIN_SSH_KNOWN_HOSTS }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.OSAK_CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - name: Check out target commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+      - name: Configure origin SSH
+        run: .github/scripts/setup-origin-ssh.sh
+      - name: Log in to GHCR on origin host with workflow token
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -F "$OSAK_SSH_CONFIG" osak-origin \
+            ghcr-login
+
+      - name: Roll back backend after website failure
+        run: |
+          set -Eeuo pipefail
+          ssh -F "$OSAK_SSH_CONFIG" osak-origin rollback
+
+      - name: Log out of GHCR on origin runner
+        if: ${{ always() }}
+        run: ssh -F "$OSAK_SSH_CONFIG" osak-origin logout || true

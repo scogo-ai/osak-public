@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Test OSAK in Swagger and connect its MCP server to Claude Code or Codex.">
+    <meta name="theme-color" content="#f5f1e8">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+    <title>API and MCP quickstart — OSAK</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="OSAK home"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span></a>
+        <nav class="site-nav" aria-label="Site navigation"><a href="/#get-key">Get a key</a><a href="/docs">API docs</a></nav>
+      </header>
+      <main class="legal-main quickstart" id="main-content">
+        <h1>API and MCP quickstart</h1>
+        <p>Start with a browser test, then use the same API key in Claude Code or the local Codex app.</p>
+
+        <section class="legal-section" aria-labelledby="swagger-title">
+          <h2 id="swagger-title">1. Test the API in Swagger</h2>
+          <p>Open <a href="/docs">Swagger UI</a>. For each route, click <strong>Try it out</strong>, enter the inputs shown below, then click <strong>Execute</strong>.</p>
+          <ol>
+            <li><strong>Check the service.</strong> Run <code>GET /api/v1/health</code>. HTTP <code>200</code> confirms reachability. The response also reports dataset health and freshness.</li>
+            <li><strong>Check the feeds.</strong> Run <code>GET /api/v1/sources</code>. For Cisco and Fortinet, look for <code>cisco_openvuln</code> and <code>fortinet_psirt_rss</code>. Check their last successful sync times.</li>
+            <li><strong>Verify your key.</strong> <a href="/#get-key">Request a key</a> if you need one. In Swagger, click <strong>Authorize</strong>, paste the key into <strong>BearerAuth</strong>, and authorize. Swagger adds the <code>Bearer</code> prefix. Run <code>GET /api/v1/me</code> and expect <code>200</code> with your account details.</li>
+            <li><strong>Browse advisories.</strong> Run <code>GET /api/v1/advisories</code> with <code>vendor</code> set to <code>fortinet</code> or <code>cisco</code> and <code>page</code> set to <code>1</code>. The response lists advisory IDs for that vendor.</li>
+            <li><strong>Inspect one advisory.</strong> Run <code>GET /api/v1/advisories/{id}</code> with <code>FG-IR-26-268</code> for FortiGuard or <code>cisco-sa-9800cl-openscep-SB4xtxzP</code> for Cisco. Look for <code>ranges</code>, <code>urls</code>, and <code>provenance</code>.</li>
+            <li><strong>Resolve a raw device string.</strong> If that is how your inventory arrives, run <code>POST /api/v1/resolve</code> with <code>{"raw_strings":["Fortinet FortiOS 7.2.4"]}</code>. Expect <code>resolved</code> and product ID <code>fortinet-fortios</code>.</li>
+            <li><strong>Match a device.</strong> Run <code>POST /api/v1/match</code> with the sample body below.</li>
+          </ol>
+          <pre aria-label="Sample match request"><code>{
+  "assets": [
+    {
+      "asset_ref": "lab-fortigate",
+      "vendor": "fortinet",
+      "os": "FortiOS",
+      "version": "7.2.4",
+      "features": ["rest_api"]
+    }
+  ]
+}</code></pre>
+          <p>In the response, find <code>lab-fortigate</code> and the finding for <code>CVE-2023-33301</code>. This sample should show <code>affected</code> with a source link once the relevant advisory feed is ready. An <code>unknown</code> verdict means the available evidence is incomplete. Use <a href="/api/v1/sources">source status</a> to check sync. If <code>/me</code> returns <code>401</code>, authorize again with your current key.</p>
+          <p>Integration endpoint <code>POST https://osak.lab.scogo.ai/api/v1/match</code>. See the <a href="/openapi.json">OpenAPI schema</a> for the full contract.</p>
+        </section>
+
+        <section class="legal-section" aria-labelledby="mcp-title">
+          <h2 id="mcp-title">2. Set the MCP key on your Mac</h2>
+          <p>Run this in Terminal and paste the same OSAK key when prompted. The key stays out of the MCP configuration and your test prompts.</p>
+          <pre aria-label="Set the OSAK API key"><code>printf 'OSAK API key: '
+read -rs OSAK_API_KEY
+printf '\n'
+export OSAK_API_KEY</code></pre>
+
+          <h3>Claude Code</h3>
+          <p>In your test project, add the following to <code>.mcp.json</code>. If the file already exists, add the <code>osak</code> entry to its <code>mcpServers</code> object.</p>
+          <pre aria-label="Claude Code MCP configuration"><code>{
+  "mcpServers": {
+    "osak": {
+      "type": "http",
+      "url": "https://osak.lab.scogo.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${OSAK_API_KEY}"
+      }
+    }
+  }
+}</code></pre>
+          <p>From the same terminal and project folder, run <code>claude</code>. Approve the project’s OSAK server if prompted. Run <code>/mcp</code> and check that <code>osak</code> is connected. <a href="https://code.claude.com/docs/en/mcp">Claude Code MCP docs</a>.</p>
+          <p>For the Claude desktop app on macOS, run <code>launchctl setenv OSAK_API_KEY "$OSAK_API_KEY"</code> in that terminal. Quit and reopen Claude, then open the <strong>Code</strong> tab and start a local session for the same project folder. <a href="https://code.claude.com/docs/en/desktop#shared-configuration">Claude desktop configuration</a>.</p>
+
+          <h3>Codex desktop app</h3>
+          <p>With the Codex CLI installed, run these commands from the same terminal. The desktop app and CLI share MCP configuration on this Mac.</p>
+          <pre aria-label="Add the OSAK server to Codex"><code>codex mcp add osak --url https://osak.lab.scogo.ai/mcp \
+  --bearer-token-env-var OSAK_API_KEY
+launchctl setenv OSAK_API_KEY "$OSAK_API_KEY"</code></pre>
+          <p>Quit and reopen the Codex app, then start a <strong>Local</strong> session. Type <code>/mcp</code> to check that <code>osak</code> is connected. <a href="https://learn.chatgpt.com/docs/extend/mcp">Codex MCP docs</a>.</p>
+        </section>
+
+        <section class="legal-section" aria-labelledby="prompts-title">
+          <h2 id="prompts-title">3. Try these prompts in either client</h2>
+          <ol>
+            <li>Use the OSAK <code>get_advisory</code> tool for <code>CVE-2023-33301</code>. Give me the advisory ID and one source link.</li>
+            <li>Use the OSAK <code>check_assets</code> tool to compare Fortinet FortiOS <code>7.2.4</code> and <code>7.2.5</code>. Include the <code>rest_api</code> feature on both. For <code>CVE-2023-33301</code>, report each verdict, the reason, and a source link.</li>
+          </ol>
+          <p>Open the tool call in your session to confirm it used <code>osak</code>. The first prompt should return the requested advisory. With the relevant feed ready, the second should report <code>affected</code> for <code>7.2.4</code> and <code>not_affected</code> for <code>7.2.5</code> for this advisory.</p>
+        </section>
+      </main>
+      <footer class="site-footer"><div class="footer-brand"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span><span class="footer-separator">/</span><span>Built by Scogo.AI</span></div><div class="footer-links"><a href="/">Home</a><a href="/docs">API docs</a></div></footer>
+    </div>
+  </body>
+</html>

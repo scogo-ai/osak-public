@@ -1,0 +1,440 @@
+{
+  "check_assets": {
+    "$defs": {
+      "Asset": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_ref": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Asset Ref",
+            "type": "string"
+          },
+          "features": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Features"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Os"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Product"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Serial"
+          },
+          "vendor": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Vendor",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_ref",
+          "vendor",
+          "version"
+        ],
+        "title": "Asset",
+        "type": "object"
+      },
+      "MatchFilters": {
+        "additionalProperties": false,
+        "properties": {
+          "kev_only": {
+            "default": false,
+            "title": "Kev Only",
+            "type": "boolean"
+          },
+          "min_severity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "critical",
+                  "high",
+                  "medium",
+                  "low",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Min Severity"
+          }
+        },
+        "title": "MatchFilters",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "assets": {
+        "items": {
+          "$ref": "#/$defs/Asset"
+        },
+        "maxItems": 100000,
+        "minItems": 1,
+        "title": "Assets",
+        "type": "array"
+      },
+      "filters": {
+        "$ref": "#/$defs/MatchFilters"
+      }
+    },
+    "required": [
+      "assets"
+    ],
+    "title": "check_assetsArguments",
+    "type": "object"
+  },
+  "explain_verdict": {
+    "$defs": {
+      "Asset": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_ref": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Asset Ref",
+            "type": "string"
+          },
+          "features": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Features"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Os"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Product"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Serial"
+          },
+          "vendor": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Vendor",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_ref",
+          "vendor",
+          "version"
+        ],
+        "title": "Asset",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "advisory_id": {
+        "title": "Advisory Id",
+        "type": "string"
+      },
+      "asset": {
+        "$ref": "#/$defs/Asset"
+      }
+    },
+    "required": [
+      "asset",
+      "advisory_id"
+    ],
+    "title": "explain_verdictArguments",
+    "type": "object"
+  },
+  "get_advisory": {
+    "properties": {
+      "id": {
+        "title": "Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "title": "get_advisoryArguments",
+    "type": "object"
+  },
+  "get_eol": {
+    "properties": {
+      "model": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model"
+      },
+      "os": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Os"
+      },
+      "vendor": {
+        "title": "Vendor",
+        "type": "string"
+      },
+      "version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Version"
+      }
+    },
+    "required": [
+      "vendor"
+    ],
+    "title": "get_eolArguments",
+    "type": "object"
+  },
+  "get_fix_options": {
+    "properties": {
+      "advisory_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Advisory Id"
+      },
+      "product": {
+        "title": "Product",
+        "type": "string"
+      },
+      "vendor": {
+        "title": "Vendor",
+        "type": "string"
+      },
+      "version": {
+        "title": "Version",
+        "type": "string"
+      }
+    },
+    "required": [
+      "vendor",
+      "product",
+      "version"
+    ],
+    "title": "get_fix_optionsArguments",
+    "type": "object"
+  },
+  "list_new_advisories": {
+    "properties": {
+      "min_severity": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Min Severity"
+      },
+      "since": {
+        "title": "Since",
+        "type": "string"
+      },
+      "vendors": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Vendors"
+      }
+    },
+    "required": [
+      "since"
+    ],
+    "title": "list_new_advisoriesArguments",
+    "type": "object"
+  },
+  "resolve_inventory": {
+    "properties": {
+      "raw_strings": {
+        "items": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 500,
+        "minItems": 1,
+        "title": "Raw Strings",
+        "type": "array"
+      }
+    },
+    "required": [
+      "raw_strings"
+    ],
+    "title": "resolve_inventoryArguments",
+    "type": "object"
+  }
+}

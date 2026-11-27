@@ -1,0 +1,14 @@
+{
+  "kind": "zone",
+  "name": "OSAK custom firewall rules",
+  "description": "OSAK-specific defense-in-depth rules. Cloudflare Access remains the primary admin service-token policy.",
+  "phase": "http_request_firewall_custom",
+  "rules": [
+    {
+      "action": "block",
+      "description": "OSAK admin paths require Cloudflare Access service-token headers",
+      "enabled": true,
+      "expression": "http.host eq \"osak.lab.scogo.ai\" and starts_with(http.request.uri.path, \"/api/v1/admin/\") and (not any(http.request.headers[\"cf-access-client-id\"][*] ne \"\") or not any(http.request.headers[\"cf-access-client-secret\"][*] ne \"\"))"
+    }
+  ]
+}

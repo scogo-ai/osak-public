@@ -1,0 +1,39 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 0,
+  "totalResults": 1,
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-1999-0095",
+        "metrics": {
+          "cvssMetricV2": [
+            {
+              "cvssData": {
+                "baseScore": 10.0,
+                "version": "2.0"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "criteria": "cpe:2.3:a:eric_allman:sendmail:5.58:*:*:*:*:*:*:*",
+                    "matchCriteriaId": "1D07F493-9C8D-44A4-8652-F28B46CBA27C",
+                    "vulnerable": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

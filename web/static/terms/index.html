@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Terms of use for OSAK.">
+    <meta name="theme-color" content="#f5f1e8">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <title>Terms of use — OSAK</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="OSAK home"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span></a>
+        <nav class="site-nav" aria-label="Secondary navigation"><a href="/">Home</a><a href="/privacy">Privacy note</a><a href="/docs">API docs</a></nav>
+      </header>
+      <main class="legal-main" id="main-content">
+        <h1>Terms of use</h1>
+        <p class="legal-lede">Last updated: 27 November 2026</p>
+        <div class="legal-callout"><strong>Read this before requesting a key.</strong> Verify every advisory result against its cited source before making a production change.</div>
+
+        <section class="legal-section" aria-labelledby="accept-title">
+          <h2 id="accept-title">1. Acceptance and eligibility</h2>
+          <p>These terms describe access to OSAK, operated by Scogo.AI. By requesting or using an API key, you confirm that you can accept these terms for your organization and that the information you provide is accurate. If your organization has a separate written agreement with the operator, that agreement controls where it conflicts with these terms.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="service-title">
+          <h2 id="service-title">2. The service</h2>
+          <p>OSAK provides normalized, provenance-tracked security-advisory facts, deterministic matching, lifecycle information, REST endpoints, and a remote MCP server. A result can be <code>affected</code>, <code>not_affected</code>, or <code>unknown</code>. Unknown means the available evidence does not support a safe conclusion; it is not a guarantee that an asset is safe. Source feeds, coverage, quotas, and availability can change.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="responsible-title">
+          <h2 id="responsible-title">3. Responsible use</h2>
+          <ul>
+            <li>Use the service only for lawful security, operations, research, and remediation work you are authorized to perform.</li>
+            <li>Do not use OSAK to conduct active discovery, scanning, exploitation, denial of service, credential attacks, or other unauthorized activity.</li>
+            <li>Do not submit exploit payloads, secrets, credentials, or personal information that is not needed for a match. Keep customer inventory in your own systems where possible.</li>
+            <li>Do not circumvent quotas, impersonate another user, share a key in a way that defeats account controls, or interfere with the service.</li>
+            <li>Use only the cited structured facts and links in ways allowed by each source's terms. OSAK does not grant rights to republish vendor advisory text.</li>
+          </ul>
+        </section>
+        <section class="legal-section" aria-labelledby="keys-title">
+          <h2 id="keys-title">4. Accounts and keys</h2>
+          <p>Keys are issued after the signup checks and emailed once. Keep the key secret, rotate it if exposed, and notify Scogo.AI through its company contact channel if you suspect misuse. The operator may rate-limit, suspend, rotate, or revoke a key to protect users, sources, or the service. We keep account details for the life of the account. Request metadata follows the 90-day schedule in the privacy note. Repeated signup requests receive a generic response and never revoke or issue a second active key.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">5. Privacy and inventory handling</h2>
+          <p>Our <a href="/privacy">privacy note</a> explains what we keep. We never store the assets you send. We keep account details for the life of the account. We keep request metadata (endpoint, time, status) for 90 days for quotas and abuse prevention. This promise does not make a caller's own systems, proxies, browser extensions, or network captures private; configure those systems appropriately.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="sources-title">
+          <h2 id="sources-title">6. Source attribution</h2>
+          <p>OSAK links to public source material and returns attribution with structured facts. Source licenses and redistribution terms remain with their owners. If a source's terms are incompatible with the public instance, that connector must be disabled or its scope changed before launch. The open-source code is licensed separately under Apache-2.0.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="warranty-title">
+          <h2 id="warranty-title">7. Disclaimer and limits</h2>
+          <p>Advisory information may be incomplete or delayed, and the service may be unavailable. OSAK does not promise that it found every advisory, that a version is free from risk, or that a remediation is suitable for your environment. You remain responsible for validating results, testing changes, and maintaining your own backups and approvals.</p>
+        </section>
+        <section class="legal-section" aria-labelledby="changes-title">
+          <h2 id="changes-title">8. Changes and contact</h2>
+          <p>The operator may update the service and these terms. Material changes will be marked with a new version and accepted during a future signup flow where required. Contact Scogo.AI through its company contact channel. Do not include secrets or customer inventory in an email.</p>
+        </section>
+      </main>
+      <footer class="site-footer"><div class="footer-brand"><span class="wordmark-mark" aria-hidden="true">O</span><span>OSAK</span><span class="footer-separator">/</span><span>Built by Scogo.AI</span></div><div class="footer-links"><a href="/">Home</a><a href="/privacy">Privacy</a></div></footer>
+    </div>
+  </body>
+</html>

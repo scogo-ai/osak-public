@@ -1,0 +1,46 @@
+name: QA gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_origin:
+        description: "Run the origin-side canary against the protected production environment"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  production-zdr:
+    name: Production ZDR canary and sink scan
+    if: ${{ vars.OSAK_PRODUCTION_DEPLOY_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_origin == true }}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-zdr
+      cancel-in-progress: false
+    env:
+      OSAK_BASE_URL: ${{ vars.OSAK_BASE_URL || 'https://osak.lab.scogo.ai' }}
+      OSAK_ZDR_API_KEY: ${{ secrets.OSAK_SMOKE_TEST_KEY }}
+      OSAK_ORIGIN_SSH_HOST: ${{ vars.OSAK_ORIGIN_SSH_HOST || 'osak-ssh.scogo.ai' }}
+      OSAK_ORIGIN_SSH_USER: ${{ vars.OSAK_ORIGIN_SSH_USER || 'scogo' }}
+      OSAK_ORIGIN_SSH_KEY: ${{ secrets.OSAK_ORIGIN_SSH_KEY }}
+      OSAK_ORIGIN_SSH_KNOWN_HOSTS: ${{ secrets.OSAK_ORIGIN_SSH_KNOWN_HOSTS }}
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.OSAK_CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.OSAK_CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure restricted origin SSH
+        run: .github/scripts/setup-origin-ssh.sh
+      - name: Require protected origin inputs
+        run: |
+          test -n "$OSAK_ZDR_API_KEY" || { echo 'OSAK_SMOKE_TEST_KEY is required'; exit 2; }
+          test -n "$OSAK_SSH_CONFIG" || { echo 'origin SSH configuration is required'; exit 2; }
+      - name: Run public-edge request and origin-side scans
+        run: |
+          set -Eeuo pipefail
+          printf '%s\n%s\n' "$OSAK_BASE_URL" "$OSAK_ZDR_API_KEY" \
+            | ssh -F "$OSAK_SSH_CONFIG" osak-origin zdr

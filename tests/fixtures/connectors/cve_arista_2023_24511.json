@@ -1,0 +1,31 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1",
+  "cveMetadata": {
+    "state": "PUBLISHED",
+    "cveId": "CVE-2023-24511",
+    "assignerShortName": "Arista",
+    "datePublished": "2023-04-12T00:00:00.000Z",
+    "dateUpdated": "2025-02-07T15:47:42.435Z"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "vendor": "Arista Networks",
+          "product": "EOS",
+          "defaultStatus": "unaffected",
+          "versions": [
+            {"version": "4.28.0 4.28.5.1M", "status": "affected"},
+            {"version": "4.29.0", "status": "affected", "lessThanOrEqual": "4.29.1F"}
+          ]
+        }
+      ],
+      "providerMetadata": {"shortName": "Arista"},
+      "title": "Security Advisory 0084",
+      "references": [
+        {"url": "https://www.arista.com/en/support/advisories-notices/security-advisory/17239-security-advisory-0084"}
+      ]
+    }
+  }
+}
